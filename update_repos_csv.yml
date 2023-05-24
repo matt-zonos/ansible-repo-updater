@@ -210,7 +210,7 @@
         - name: Check for existing pull requests
           ansible.builtin.shell: >
             cd "{{ dest_folder }}/{{ item.repo_name }}" &&
-            GH_TOKEN="{{ github_api_token }}" gh pr list --state all
+            GH_TOKEN="{{ github_access_token }}" gh pr list --state all
             --base "{{ item.default_branch }}" --head "{{ github_org_name }}:{{ branch }}" --json "title,url"
           register: existing_prs
           loop: "{{ writable_repo_list }}"
@@ -222,7 +222,7 @@
             - name: Create a pull request for the current repository
               ansible.builtin.shell: >
                 cd "{{ dest_folder }}/{{ item.item.repo_name }}" &&
-                GH_TOKEN="{{ github_api_token }}" gh pr create --title "Update GitHub Actions to latest versions"
+                GH_TOKEN="{{ github_access_token }}" gh pr create --title "Update GitHub Actions to latest versions"
                 --base "{{ item.item.default_branch }}" --head "{{ branch }}" --body '' --repo "{{ github_org_name }}/{{ item.item.repo_name }}" --fill
               loop: "{{ existing_prs.results }}"
               loop_control:
