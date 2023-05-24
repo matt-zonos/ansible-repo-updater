@@ -15,3 +15,6 @@ env.yml
 
 # Ignore text files
 *.txt
+
+# vscode files
+.vscode
