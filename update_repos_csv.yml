@@ -1,0 +1,266 @@
+# ansible-playbook update_repos_csv.yml
+---
+- name: Update repositories in a GitHub organization
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - env.yml
+  tasks:
+    - name: Run get_repos_csv.py script
+      ansible.builtin.command: python3 get_repos_csv.py
+      environment:
+        GITHUB_ORG_NAME: "{{ github_org_name }}"
+        GITHUB_ACCESS_TOKEN: "{{ github_access_token }}"
+      register: get_repos_csv_output
+      changed_when: get_repos_csv_output.rc != 0
+      tags: update_csv
+
+    - name: Read CSV file
+      community.general.read_csv:
+        path: repo_list.csv
+        fieldnames: repo_name,ssh_url,permission,default_branch,repo_url
+      register: repo_list
+      tags: csv
+
+    - name: Filter repositories with write permissions
+      ansible.builtin.set_fact:
+        writable_repo_list: "{{ repo_list.list | selectattr('permission', 'equalto', 'write') | list }}"
+      tags: filter_write_repos
+
+    - name: Block
+      block:
+        - name: Create destination folder to store the cloned repositories
+          ansible.builtin.file:
+            path: "{{ dest_folder }}"
+            state: directory
+            mode: "0755"
+          tags: clone
+
+        - name: Clone the repositories specified in the writable_repo_list variable
+          ansible.builtin.git:
+            repo: "{{ item.ssh_url }}"
+            dest: "{{ dest_folder }}/{{ item.repo_name }}"
+            version: "{{ item.default_branch }}"
+            accept_hostkey: true
+          loop: "{{ writable_repo_list }}"
+          register: git_result
+          tags: clone_repo
+
+        - name: Create and checkout a new branch for each repository in the writable_repo_list
+          ansible.builtin.shell: |
+            cd "{{ dest_folder }}/{{ item.repo_name }}"
+            if git show-ref --quiet refs/heads/"{{ branch }}"; then
+              echo 'Branch already exists'
+            else
+              git checkout -b "{{ branch }}"
+              echo 'Branch created or checked out'
+            fi
+          register: my_output
+          changed_when: "'Branch created or checked out' in my_output.stdout"
+          loop: "{{ writable_repo_list }}"
+          tags: checkout
+
+        - name: Find all yml files in /.github/workflows recursively
+          ansible.builtin.find:
+            paths: "{{ dest_folder }}"
+            file_type: file
+            patterns: "*.yml,*.yaml"
+            recurse: true
+          register: found_files
+          tags: update
+
+        - name: Replace 'actions/checkout@v2' with 'actions/checkout@v3'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: "uses: actions/checkout@v2"
+            replace: "uses: actions/checkout@v3"
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'aws-actions/configure-aws-credentials@v1' with 'aws-actions/configure-aws-credentials@v2'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: "uses: aws-actions/configure-aws-credentials@v1"
+            replace: "uses: aws-actions/configure-aws-credentials@v2"
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'hashicorp/setup-terraform@v1' with 'hashicorp/setup-terraform@v2'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: "uses: hashicorp/setup-terraform@v1"
+            replace: "uses: hashicorp/setup-terraform@v2"
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'actions/setup-python@v1/v2/v3' with 'actions/setup-python@v4'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: "uses: actions/setup-python@(v1|v2|v3)"
+            replace: "uses: actions/setup-python@v4"
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'actions/setup-node@v1/v2' with 'actions/setup-node@v3'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: "uses: actions/setup-node@(v1|v2)"
+            replace: "uses: actions/setup-node@v3"
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'actions/setup-java@v1/v2' with 'actions/setup-java@v3'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: "uses: actions/setup-java@(v1|v2)"
+            replace: "uses: actions/setup-java@v3"
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace '::set-output name=(.*)::(.*)' pattern
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: "::set-output name=(.*)::(.*)"
+            replace: '\1=\2 >> $GITHUB_OUTPUT'
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'actions/upload-artifact@v2' with 'actions/upload-artifact@v3'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: "uses: actions/upload-artifact@v2"
+            replace: "uses: actions/upload-artifact@v3"
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'actions/download-artifact@v2' with 'actions/download-artifact@v3'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: "uses: actions/download-artifact@v2"
+            replace: "uses: actions/download-artifact@v3"
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'actions/cache@v2' with 'actions/cache@v3'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: "uses: actions/cache@v2"
+            replace: "uses: actions/cache@v3"
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'slackapi/slack-github-action@v1.18.0' with 'slackapi/slack-github-action@v1.23.0'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: "uses: slackapi/slack-github-action@v1.18.0"
+            replace: "uses: slackapi/slack-github-action@v1.23.0"
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'echo "base_ref_branch=$(eval printf "%s" "$BASE_REF")" >> $GITHUB_OUTPUT' with 'echo "base_ref_branch=$BASE_REF" >> $GITHUB_OUTPUT'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: 'echo "base_ref_branch=$(eval printf "%s" "$BASE_REF")" >> $GITHUB_OUTPUT'
+            replace: 'echo "base_ref_branch=$BASE_REF" >> $GITHUB_OUTPUT'
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'echo "head_ref_branch=$(eval printf "%s" "$HEAD_REF")" >> $GITHUB_OUTPUT' with 'echo "head_ref_branch=$HEAD_REF" >> $GITHUB_OUTPUT'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: 'echo "head_ref_branch=$(eval printf "%s" "$HEAD_REF")" >> $GITHUB_OUTPUT'
+            replace: 'echo "head_ref_branch=$HEAD_REF" >> $GITHUB_OUTPUT'
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        - name: Replace 'echo "ref_branch=$(eval printf "%s" "$REF_BRANCH")" >> $GITHUB_OUTPUT' with 'echo "ref_branch=$REF_BRANCH" >> $GITHUB_OUTPUT'
+          ansible.builtin.replace:
+            path: "{{ item.path }}"
+            regexp: 'echo "ref_branch=$(eval printf "%s" "$REF_BRANCH")" >> $GITHUB_OUTPUT'
+            replace: 'echo "ref_branch=$REF_BRANCH" >> $GITHUB_OUTPUT'
+          loop: "{{ found_files.files }}"
+          when: found_files is defined
+          tags: update
+
+        # Commit and push changes to the repository
+        - name: Add, commit and push changes
+          ansible.builtin.shell: |
+            cd "{{ dest_folder }}/{{ item.repo_name }}"
+            git add .
+            git diff-index --quiet HEAD || (git commit -m "Update GitHub Actions to latest versions" && git push origin "{{ branch }}")
+          register: git_result
+          loop: "{{ writable_repo_list }}"
+          changed_when: "'[new branch]' in git_result.stdout or '1 file changed' in git_result.stdout or 'files changed' in git_result.stdout"
+          tags: commit_push
+          ignore_errors: true
+
+        - name: Check for existing pull requests
+          ansible.builtin.shell: >
+            cd "{{ dest_folder }}/{{ item.repo_name }}" &&
+            GH_TOKEN="{{ github_api_token }}" gh pr list --state all
+            --base "{{ item.default_branch }}" --head "{{ github_org_name }}:{{ branch }}" --json "title,url"
+          register: existing_prs
+          loop: "{{ writable_repo_list }}"
+          changed_when: "'Update GitHub Actions to latest versions' not in existing_prs.stdout"
+          tags: pull_request
+
+        - name: Create pull requests
+          block:
+            - name: Create a pull request for the current repository
+              ansible.builtin.shell: >
+                cd "{{ dest_folder }}/{{ item.item.repo_name }}" &&
+                GH_TOKEN="{{ github_api_token }}" gh pr create --title "Update GitHub Actions to latest versions"
+                --base "{{ item.item.default_branch }}" --head "{{ branch }}" --body '' --repo "{{ github_org_name }}/{{ item.item.repo_name }}" --fill
+              loop: "{{ existing_prs.results }}"
+              loop_control:
+                index_var: item_index
+              when: item.changed and git_result.results[item_index].changed
+              register: pr_urls
+              changed_when: "'https://github.com' in item.stdout"
+              tags: pull_request
+              ignore_errors: true
+
+            - name: Pause for a few seconds to avoid hitting the GitHub API rate limit
+              ansible.builtin.pause:
+                seconds: 3
+              loop: "{{ existing_prs.results }}"
+              loop_control:
+                index_var: item_index
+              when: existing_prs.results[item_index].changed and git_result.results[item_index].changed
+              tags: pull_request
+
+          rescue:
+            - name: Write remaining URLs to rescue-file.txt
+              ansible.builtin.shell: >
+                echo "https://github.com/{{ github_org_name }}/{{ item.item.repo_name }}/compare/{{ branch }}?expand=1" >> rescue-file.txt
+              loop: "{{ existing_prs.results[item_index:] }}"
+              tags: rescue
+
+        - name: Write PR URLs to a file
+          ansible.builtin.shell: >
+            echo "{{ item.stdout }}" >> pr_urls.txt
+          loop: "{{ pr_urls.results }}"
+          when: item.stdout is defined and item.stdout != ''
+          register: write_file_result
+          changed_when: write_file_result.stdout_lines | length > 0
+          tags: pull_request
+
+      always:
+        - name: Delete destination folder
+          ansible.builtin.file:
+            path: "{{ dest_folder }}"
+            state: absent
+          tags: cleanup

@@ -1,0 +1,17 @@
+# Logs
+######################
+# Ignore all .log files
+*.log
+
+# Environment Variables
+######################
+# Ignore the main environment file
+env.yml
+
+# Various formats
+######################
+# Ignore CSV files
+*.csv
+
+# Ignore text files
+*.txt
