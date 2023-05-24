@@ -30,7 +30,7 @@ Rename `env.yml.example` to `env.yml` and fill in the following variables:
 - `github_username`: Your GitHub username.
 - `dest_folder`: The path to the destination folder where the cloned repositories will be downloaded.
 - `branch`: The name of the branch to be created in each repository.
-- `commit_msg`: The commit message for the changes.
+- `github_commit_msg`: The commit message for the changes.
 
 ### Executing the Program
 
