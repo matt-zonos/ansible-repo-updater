@@ -1,0 +1,7 @@
+---
+- name: Add line to README
+  ansible.builtin.lineinfile:
+    path: "{{ dest_folder }}/{{ item.repo_name }}/README.md"
+    line: "this is for a test pr do not approve"
+    create: true
+  tags: update_readme

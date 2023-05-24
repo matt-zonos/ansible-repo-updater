@@ -1,0 +1,24 @@
+# create_prs_and_pause.yml
+---
+- name: Create a pull request for the current repository
+  ansible.builtin.shell: >
+    cd "{{ dest_folder }}/{{ item.item.repo_name }}" &&
+    GH_TOKEN="{{ github_access_token }}" gh pr create --title "{{ github_commit_msg }}"
+    --base "{{ item.item.default_branch }}" --head "{{ branch }}" --body '' --repo "{{ github_org_name }}/{{ item.item.repo_name }}" --fill
+  when: item.changed and git_result.results[item_index].changed
+  register: pr_urls
+  changed_when: "'https://github.com' in item.stdout"
+  tags: pull_request
+  ignore_errors: true
+
+- name: Pause for a few seconds to avoid hitting the GitHub API rate limit
+  ansible.builtin.pause:
+    seconds: 3
+  when: existing_prs.results[item_index].changed and git_result.results[item_index].changed
+  tags: pull_request
+
+- name: Write PR URLs to a file
+  ansible.builtin.shell: >
+    echo "{{ pr_urls.stdout }}" >> pr_urls.txt
+  when: pr_urls.stdout is defined and pr_urls.stdout != ''
+  tags: pull_request

@@ -41,6 +41,40 @@ Run the Ansible playbook with the following command:
 ansible-playbook update_repos_csv.yml
 ```
 
+### Command Options
+
+- To update the CSV file only:
+
+```bash
+ansible-playbook update_repos_csv.yml --tags update_csv
+```
+
+This option executes only the tasks related to updating the CSV file containing the list of repositories. It skips the tasks related to updating GitHub Actions in the repositories.
+
+- To skip updating the CSV file:
+
+```bash
+ansible-playbook update_repos_csv.yml --skip update_csv
+```
+
+This option skips the tasks related to updating the CSV file. It executes the tasks related to updating GitHub Actions in the repositories.
+
+- To skip specific tasks:
+
+```bash
+ansible-playbook update_repos_csv.yml --skip update_csv --skip update
+```
+
+This option allows you to skip specific tasks in the playbook. In this example, it skips both the tasks related to updating the CSV file and updating GitHub Actions.
+
+- To perform a dry run without making changes:
+
+```bash
+ansible-playbook update_repos_csv.yml --skip update_csv --skip update --check
+```
+
+The --check option runs the playbook in check mode, which performs a dry run without making any changes. It allows you to preview the changes that would be made without actually modifying the repositories.
+
 ## Help
 
 If you encounter any issues, please open an issue on this GitHub repository.
@@ -54,8 +88,3 @@ Matt Zonos
 
 - 0.1
   - Initial Release
-
-## License
-
-This project is licensed under the [NAME HERE] License - see the LICENSE.md file for details
-\`\`\`
