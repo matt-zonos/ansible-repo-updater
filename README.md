@@ -9,6 +9,7 @@ This repository contains an Ansible playbook and a Python script for automating 
 ### Dependencies
 
 - Ansible
+- gh api
 - Python 3
 - Python's `github` library
 
